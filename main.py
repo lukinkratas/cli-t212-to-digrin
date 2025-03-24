@@ -1,27 +1,28 @@
-import os
 import datetime as dt
+import os
 import time
 from io import StringIO
 
-import requests
-from dotenv import load_dotenv
-from dateutil.relativedelta import relativedelta
 import pandas as pd
+import requests
+from dateutil.relativedelta import relativedelta
+from dotenv import load_dotenv
 
-from custom_utils import track_args, s3_put_df, s3_put_object
+from custom_utils import s3_put_df, s3_put_object, track_args
 
 BUCKET_NAME = 't212-to-digrin'
 TICKER_BLACKLIST = [
-    'VNTRF', # due to stock sp  lit
-    'BRK.A', # not available in digrin
+    'VNTRF',  # due to stock sp  lit
+    'BRK.A',  # not available in digrin
 ]
+
 
 def map_ticker(ticker):
     if pd.isna(ticker):
         return None
-        
+
     ticker = str(ticker).strip()
-    
+
     ticker_map = {
         'VWCE': 'VWCE.DE',
         'VUAA': 'VUAA.DE',
@@ -36,53 +37,54 @@ def map_ticker(ticker):
         'IUHC': 'IUHC.L',
         'NDIA': 'NDIA.L',
     }
-    
+
     return ticker_map.get(ticker, ticker)
+
 
 @track_args
 def transform(df_bytes):
-
     # Read input CSV
     df = pd.read_csv(StringIO(df_bytes.decode('utf-8')))
 
     # Filter out blacklisted tickers
     df = df[~df['Ticker'].isin(TICKER_BLACKLIST)]
     df = df[df['Action'].isin(['Market buy', 'Market sell'])]
-    
+
     # Apply the mapping to the ticker column
     df['Ticker'] = df['Ticker'].apply(map_ticker)
 
     # convert dtypes
     df = df.convert_dtypes()
-    
+
     return df
 
+
 @track_args
-def create_export(start_dt:str, end_dt:str):
-    '''
+def create_export(start_dt: str, end_dt: str):
+    """
     Spawns T212 csv export process.
 
     Args:
         start_dt:str - start datetime in string format %Y-%m-%dT%H:%M:%SZ
         end_dt:str - end datetime in string format %Y-%m-%dT%H:%M:%SZ
-    '''
+    """
 
-    url = "https://live.trading212.com/api/v0/history/exports"
+    url = 'https://live.trading212.com/api/v0/history/exports'
 
     payload = {
-        "dataIncluded": {
-            "includeDividends": True,
-            "includeInterest": True,
-            "includeOrders": True,
-            "includeTransactions": True
+        'dataIncluded': {
+            'includeDividends': True,
+            'includeInterest': True,
+            'includeOrders': True,
+            'includeTransactions': True,
         },
-        "timeFrom": start_dt,
-        "timeTo": end_dt
+        'timeFrom': start_dt,
+        'timeTo': end_dt,
     }
 
     headers = {
-        "Content-Type": "application/json",
-        "Authorization": os.getenv('T212_API_KEY')
+        'Content-Type': 'application/json',
+        'Authorization': os.getenv('T212_API_KEY'),
     }
 
     response = requests.post(url, json=payload, headers=headers)
@@ -92,12 +94,12 @@ def create_export(start_dt:str, end_dt:str):
 
     print(f'{response.status_code=}')
 
+
 @track_args
 def fetch_reports():
+    url = 'https://live.trading212.com/api/v0/history/exports'
 
-    url = "https://live.trading212.com/api/v0/history/exports"
-
-    headers = {"Authorization": os.getenv('T212_API_KEY')}
+    headers = {'Authorization': os.getenv('T212_API_KEY')}
 
     response = requests.get(url, headers=headers)
 
@@ -106,66 +108,80 @@ def fetch_reports():
 
     print(f'{response.status_code=}')
 
-def process_dt(dt):
-    first_day_dt = dt.replace(day=1)
-    first_day_str = start_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    first_day_next_month_dt = first_day_dt + relativedelta(months=1)
-    first_day_next_month_str = first_day_next_month_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-    return first_day_str, first_day_next_month_str
-
-def main():
-    load_dotenv(override=True)
-
+def get_input_dt():
     default_dt = dt.date.today() - relativedelta(months=1)
     default_dt_str = default_dt.strftime('%Y-%m')
 
-    input_dt_str = input(f'Reporting Year Month in "YYYY-mm" format, or confirm default {default_dt_str} by ENTER: \n')
+    input_dt_str = input(
+        f'Reporting Year Month in "YYYY-mm" format, or confirm default "{default_dt_str}" by ENTER: \n'
+    )
 
     if not input_dt_str:
         input_dt_str = default_dt_str
 
+    return input_dt_str
+
+
+def get_first_day_of_month(dt):
+    first_day_of_month = dt.replace(day=1)
+
+    return first_day_of_month.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def get_first_day_of_next_month(dt):
+    first_day_of_month = dt.replace(day=1)
+    first_day_of_next_month = first_day_of_month + relativedelta(months=1)
+
+    return first_day_of_next_month.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def main():
+    load_dotenv(override=True)
+
+    input_dt_str = get_input_dt()  # used later in the naming of csv
     input_dt = dt.datetime.strptime(input_dt_str, '%Y-%m')
-    
-    start, end = process_dt(input_dt)
+
+    start = get_first_day_of_month(input_dt)
+    end = get_first_day_of_next_month(input_dt)
 
     report_id = create_export(start, end)
-    # time.sleep(1) # optimize for too early fetch_reports call -> report still processing
+    time.sleep(
+        3
+    )  # optimize for too early fetch_reports call -> report still processing
 
     while True:
-        reports = fetch_reports() # list of dicts with keys: reportId, timeFrom, timeTo, dataIncluded, status, downloadLink
-        
-        if not reports: # too many calls -> fetch_reports returns None
-            time.sleep(60) # limit 1 call per minute
+        # reports: list of dicts with keys:
+        #   reportId, timeFrom, timeTo, dataIncluded, status, downloadLink
+        reports = fetch_reports()  
+
+        if not reports:  # too many calls -> fetch_reports returns None
+            time.sleep(60)  # limit 1 call per minute
             continue
 
         # filter report by report_id, start from the last report
-        report = next(filter(lambda report: report.get('reportId') == report_id, reports[::-1]))
+        report = next(
+            filter(lambda report: report.get('reportId') == report_id, reports[::-1])
+        )
 
         if report.get('status') == 'Finished':
             download_link = report.get('downloadLink')
             break
 
     response = requests.get(download_link)
+    df = response.content
 
     if response.status_code == 200:
-        s3_put_object(
-            bytes=response.content,
-            bucket=BUCKET_NAME,
-            key=f't212/{input_dt_str}.csv'
-        )
+        s3_put_object(bytes=df, bucket=BUCKET_NAME, key=f't212/{input_dt_str}.csv')
 
-        df = transform(response.content)
+        df = transform(df)
+        df.to_csv(f'{input_dt_str}.csv')
 
-        s3_put_df(
-            df,
-            bucket=BUCKET_NAME,
-            key=f'digrin/{input_dt_str}.csv'
-        )
+        s3_put_df(df, bucket=BUCKET_NAME, key=f'digrin/{input_dt_str}.csv')
 
     else:
         print(f'{response.status_code=}')
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()
