@@ -12,15 +12,12 @@ from custom_utils import s3_put_df, s3_put_object, track_args
 
 BUCKET_NAME = 't212-to-digrin'
 TICKER_BLACKLIST = [
-    'VNTRF',  # due to stock sp  lit
+    'VNTRF',  # due to stock split
     'BRK.A',  # not available in digrin
 ]
 
 
-def map_ticker(ticker):
-    if pd.isna(ticker):
-        return None
-
+def map_ticker(ticker: str) -> str:
     ticker = str(ticker).strip()
 
     ticker_map = {
@@ -42,7 +39,7 @@ def map_ticker(ticker):
 
 
 @track_args
-def transform(df_bytes):
+def transform(df_bytes: bytes) -> pd.DataFrame:
     # Read input CSV
     df = pd.read_csv(StringIO(df_bytes.decode('utf-8')))
 
@@ -60,7 +57,7 @@ def transform(df_bytes):
 
 
 @track_args
-def create_export(start_dt: str, end_dt: str):
+def create_export(start_dt: str, end_dt: str) -> int:
     """
     Spawns T212 csv export process.
 
@@ -89,27 +86,27 @@ def create_export(start_dt: str, end_dt: str):
 
     response = requests.post(url, json=payload, headers=headers)
 
-    if response.status_code == 200:
-        return response.json().get('reportId')
+    if response.status_code != 200:
+        print(f'{response.status_code=}')
 
-    print(f'{response.status_code=}')
+    return response.json().get('reportId')
 
 
 @track_args
-def fetch_reports():
+def fetch_reports() -> list[dict]:
     url = 'https://live.trading212.com/api/v0/history/exports'
 
     headers = {'Authorization': os.getenv('T212_API_KEY')}
 
     response = requests.get(url, headers=headers)
 
-    if response.status_code == 200:
-        return response.json()
+    if response.status_code != 200:
+        print(f'{response.status_code=}')
 
-    print(f'{response.status_code=}')
+    return response.json()
 
 
-def get_input_dt():
+def get_input_dt() -> str:
     default_dt = dt.date.today() - relativedelta(months=1)
     default_dt_str = default_dt.strftime('%Y-%m')
 
@@ -123,13 +120,13 @@ def get_input_dt():
     return input_dt_str
 
 
-def get_first_day_of_month(dt):
+def get_first_day_of_month(dt: dt.datetime) -> str:
     first_day_of_month = dt.replace(day=1)
 
     return first_day_of_month.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def get_first_day_of_next_month(dt):
+def get_first_day_of_next_month(dt: dt.datetime) -> str:
     first_day_of_month = dt.replace(day=1)
     first_day_of_next_month = first_day_of_month + relativedelta(months=1)
 
@@ -146,14 +143,13 @@ def main():
     end = get_first_day_of_next_month(input_dt)
 
     report_id = create_export(start, end)
-    time.sleep(
-        3
-    )  # optimize for too early fetch_reports call -> report still processing
+    # optimize for too early fetch_reports call -> report still processing
+    time.sleep(4)
 
     while True:
         # reports: list of dicts with keys:
         #   reportId, timeFrom, timeTo, dataIncluded, status, downloadLink
-        reports = fetch_reports()  
+        reports = fetch_reports()
 
         if not reports:  # too many calls -> fetch_reports returns None
             time.sleep(60)  # limit 1 call per minute
