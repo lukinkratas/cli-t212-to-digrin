@@ -1,4 +1,4 @@
-import datetime as dt
+import datetime
 import os
 import time
 from io import StringIO
@@ -18,7 +18,8 @@ TICKER_BLACKLIST = [
 
 
 def get_input_dt() -> str:
-    default_dt = dt.date.today() - relativedelta(months=1)
+    today_dt = datetime.date.today()
+    default_dt = datetime.datetime(today_dt.year, today_dt.month-1, today_dt.day)
     default_dt_str = default_dt.strftime('%Y-%m')
 
     input_dt_str = input(
@@ -31,21 +32,16 @@ def get_input_dt() -> str:
     return input_dt_str
 
 
-def get_first_day_of_month(dt: dt.datetime) -> str:
-    first_day_of_month = dt.replace(day=1)
-
-    return first_day_of_month.strftime('%Y-%m-%dT%H:%M:%SZ')
+def get_first_day_of_month(dt: datetime.datetime) -> datetime.datetime:
+    return datetime.datetime(dt.year, dt.month, 1)
 
 
-def get_first_day_of_next_month(dt: dt.datetime) -> str:
-    first_day_of_month = dt.replace(day=1)
-    first_day_of_next_month = first_day_of_month + relativedelta(months=1)
-
-    return first_day_of_next_month.strftime('%Y-%m-%dT%H:%M:%SZ')
+def get_first_day_of_next_month(dt: datetime.datetime) -> datetime.datetime:
+    return datetime.datetime(dt.year, dt.month+1, 1)
 
 
 @track_args
-def create_export(start_dt: str, end_dt: str) -> int:
+def create_export(start_dt: datetime.datetime, end_dt: datetime.datetime) -> int:
     """
     Spawns T212 csv export process.
 
@@ -63,8 +59,8 @@ def create_export(start_dt: str, end_dt: str) -> int:
             'includeOrders': True,
             'includeTransactions': True,
         },
-        'timeFrom': start_dt,
-        'timeTo': end_dt,
+        'timeFrom': start_dt.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'timeTo': end_dt.strftime('%Y-%m-%dT%H:%M:%SZ'),
     }
 
     headers = {
@@ -76,6 +72,7 @@ def create_export(start_dt: str, end_dt: str) -> int:
 
     if response.status_code != 200:
         print(f'{response.status_code=}')
+        return
 
     return response.json().get('reportId')
 
@@ -90,6 +87,7 @@ def fetch_reports() -> list[dict]:
 
     if response.status_code != 200:
         print(f'{response.status_code=}')
+        return
 
     return response.json()
 
@@ -137,22 +135,27 @@ def main():
     load_dotenv(override=True)
 
     input_dt_str = get_input_dt()  # used later in the naming of csv
-    input_dt = dt.datetime.strptime(input_dt_str, '%Y-%m')
+    input_dt = datetime.datetime.strptime(input_dt_str, '%Y-%m')
 
-    start = get_first_day_of_month(input_dt)
-    end = get_first_day_of_next_month(input_dt)
+    start_dt = get_first_day_of_month(input_dt)
+    end_dt = get_first_day_of_next_month(input_dt)
 
-    report_id = create_export(start, end)
+    while not (report_id := create_export(start_dt, end_dt)):
+        # limit 1 call per 30s
+        time.sleep(30)
+    
     # optimize for too early fetch_reports call -> report still processing
-    time.sleep(4)
+    time.sleep(8)
 
     while True:
         # reports: list of dicts with keys:
         #   reportId, timeFrom, timeTo, dataIncluded, status, downloadLink
         reports = fetch_reports()
 
-        if not reports:  # too many calls -> fetch_reports returns None
-            time.sleep(60)  # limit 1 call per minute
+        # too many calls -> fetch_reports returns None
+        if not reports:
+            # limit 1 call per 1min
+            time.sleep(60)
             continue
 
         # filter report by report_id, start from the last report
