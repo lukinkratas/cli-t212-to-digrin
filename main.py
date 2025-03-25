@@ -17,43 +17,31 @@ TICKER_BLACKLIST = [
 ]
 
 
-def map_ticker(ticker: str) -> str:
-    ticker = str(ticker).strip()
+def get_input_dt() -> str:
+    default_dt = dt.date.today() - relativedelta(months=1)
+    default_dt_str = default_dt.strftime('%Y-%m')
 
-    ticker_map = {
-        'VWCE': 'VWCE.DE',
-        'VUAA': 'VUAA.DE',
-        'SXRV': 'SXRV.DE',
-        'ZPRV': 'ZPRV.DE',
-        'ZPRX': 'ZPRX.DE',
-        'MC': 'MC.PA',
-        'ASML': 'ASML.AS',
-        'CSPX': 'CSPX.L',
-        'EISU': 'EISU.L',
-        'IITU': 'IITU.L',
-        'IUHC': 'IUHC.L',
-        'NDIA': 'NDIA.L',
-    }
+    input_dt_str = input(
+        f'Reporting Year Month in "YYYY-mm" format, or confirm default "{default_dt_str}" by ENTER: \n'
+    )
 
-    return ticker_map.get(ticker, ticker)
+    if not input_dt_str:
+        input_dt_str = default_dt_str
+
+    return input_dt_str
 
 
-@track_args
-def transform(df_bytes: bytes) -> pd.DataFrame:
-    # Read input CSV
-    df = pd.read_csv(StringIO(df_bytes.decode('utf-8')))
+def get_first_day_of_month(dt: dt.datetime) -> str:
+    first_day_of_month = dt.replace(day=1)
 
-    # Filter out blacklisted tickers
-    df = df[~df['Ticker'].isin(TICKER_BLACKLIST)]
-    df = df[df['Action'].isin(['Market buy', 'Market sell'])]
+    return first_day_of_month.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    # Apply the mapping to the ticker column
-    df['Ticker'] = df['Ticker'].apply(map_ticker)
 
-    # convert dtypes
-    df = df.convert_dtypes()
+def get_first_day_of_next_month(dt: dt.datetime) -> str:
+    first_day_of_month = dt.replace(day=1)
+    first_day_of_next_month = first_day_of_month + relativedelta(months=1)
 
-    return df
+    return first_day_of_next_month.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 @track_args
@@ -106,31 +94,43 @@ def fetch_reports() -> list[dict]:
     return response.json()
 
 
-def get_input_dt() -> str:
-    default_dt = dt.date.today() - relativedelta(months=1)
-    default_dt_str = default_dt.strftime('%Y-%m')
+def map_ticker(ticker: str) -> str:
+    ticker = str(ticker).strip()
 
-    input_dt_str = input(
-        f'Reporting Year Month in "YYYY-mm" format, or confirm default "{default_dt_str}" by ENTER: \n'
-    )
+    ticker_map = {
+        'VWCE': 'VWCE.DE',
+        'VUAA': 'VUAA.DE',
+        'SXRV': 'SXRV.DE',
+        'ZPRV': 'ZPRV.DE',
+        'ZPRX': 'ZPRX.DE',
+        'MC': 'MC.PA',
+        'ASML': 'ASML.AS',
+        'CSPX': 'CSPX.L',
+        'EISU': 'EISU.L',
+        'IITU': 'IITU.L',
+        'IUHC': 'IUHC.L',
+        'NDIA': 'NDIA.L',
+    }
 
-    if not input_dt_str:
-        input_dt_str = default_dt_str
-
-    return input_dt_str
+    return ticker_map.get(ticker, ticker)
 
 
-def get_first_day_of_month(dt: dt.datetime) -> str:
-    first_day_of_month = dt.replace(day=1)
+@track_args
+def transform(df_bytes: bytes) -> pd.DataFrame:
+    # Read input CSV
+    df = pd.read_csv(StringIO(df_bytes.decode('utf-8')))
 
-    return first_day_of_month.strftime('%Y-%m-%dT%H:%M:%SZ')
+    # Filter out blacklisted tickers
+    df = df[~df['Ticker'].isin(TICKER_BLACKLIST)]
+    df = df[df['Action'].isin(['Market buy', 'Market sell'])]
 
+    # Apply the mapping to the ticker column
+    df['Ticker'] = df['Ticker'].apply(map_ticker)
 
-def get_first_day_of_next_month(dt: dt.datetime) -> str:
-    first_day_of_month = dt.replace(day=1)
-    first_day_of_next_month = first_day_of_month + relativedelta(months=1)
+    # convert dtypes
+    df = df.convert_dtypes()
 
-    return first_day_of_next_month.strftime('%Y-%m-%dT%H:%M:%SZ')
+    return df
 
 
 def main():
