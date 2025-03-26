@@ -1,0 +1,2 @@
+,Action,Time,ISIN,Ticker,Name,Notes,ID,No. of shares,Price / share,Currency (Price / share),Exchange rate,Currency (Result),Total,Currency (Total),Withholding tax,Currency (Withholding tax),Currency conversion from amount,Currency (Currency conversion from amount),Currency conversion to amount,Currency (Currency conversion to amount),Currency conversion fee,Currency (Currency conversion fee)
+31,Market buy,2025-02-28 15:01:54.675,US02079K3059,GOOGL,Alphabet (Class A),,EOF28855059770,0.5,168.89,USD,0.04157558,CZK,2034.17,CZK,,,,,,,3.05,CZK

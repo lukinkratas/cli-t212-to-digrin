@@ -41,7 +41,7 @@ def get_first_day_of_next_month(dt: datetime.datetime) -> datetime.datetime:
 
 
 @track_args
-def create_export(start_dt: datetime.datetime, end_dt: datetime.datetime) -> int:
+def create_export(from_dt: datetime.datetime, to_dt: datetime.datetime) -> int:
     """
     Spawns T212 csv export process.
 
@@ -59,8 +59,8 @@ def create_export(start_dt: datetime.datetime, end_dt: datetime.datetime) -> int
             'includeOrders': True,
             'includeTransactions': True,
         },
-        'timeFrom': start_dt.strftime('%Y-%m-%dT%H:%M:%SZ'),
-        'timeTo': end_dt.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'timeFrom': from_dt.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'timeTo': to_dt.strftime('%Y-%m-%dT%H:%M:%SZ'),
     }
 
     headers = {
@@ -137,15 +137,15 @@ def main():
     input_dt_str = get_input_dt()  # used later in the naming of csv
     input_dt = datetime.datetime.strptime(input_dt_str, '%Y-%m')
 
-    start_dt = get_first_day_of_month(input_dt)
-    end_dt = get_first_day_of_next_month(input_dt)
+    from_dt = get_first_day_of_month(input_dt)
+    to_dt = get_first_day_of_next_month(input_dt)
 
-    while not (report_id := create_export(start_dt, end_dt)):
+    while not (report_id := create_export(from_dt, to_dt)):
         # limit 1 call per 30s
         time.sleep(30)
     
     # optimize for too early fetch_reports call -> report still processing
-    time.sleep(8)
+    time.sleep(10)
 
     while True:
         # reports: list of dicts with keys:
