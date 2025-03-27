@@ -5,7 +5,6 @@ from io import StringIO
 
 import pandas as pd
 import requests
-from dateutil.relativedelta import relativedelta
 from dotenv import load_dotenv
 
 from custom_utils import s3_put_df, s3_put_object, track_args
@@ -19,12 +18,12 @@ TICKER_BLACKLIST = [
 
 def get_input_dt() -> str:
     today_dt = datetime.date.today()
-    default_dt = datetime.datetime(today_dt.year, today_dt.month-1, today_dt.day)
+    default_dt = datetime.datetime(today_dt.year, today_dt.month - 1, today_dt.day)
     default_dt_str = default_dt.strftime('%Y-%m')
 
-    input_dt_str = input(
-        f'Reporting Year Month in "YYYY-mm" format, or confirm default "{default_dt_str}" by ENTER: \n'
-    )
+    print('Reporting Year Month in "YYYY-mm" format.')
+    print(f'Or confirm default "{default_dt_str}" by ENTER: \n')
+    input_dt_str = input()
 
     if not input_dt_str:
         input_dt_str = default_dt_str
@@ -37,7 +36,7 @@ def get_first_day_of_month(dt: datetime.datetime) -> datetime.datetime:
 
 
 def get_first_day_of_next_month(dt: datetime.datetime) -> datetime.datetime:
-    return datetime.datetime(dt.year, dt.month+1, 1)
+    return datetime.datetime(dt.year, dt.month + 1, 1)
 
 
 @track_args
@@ -72,7 +71,7 @@ def create_export(from_dt: datetime.datetime, to_dt: datetime.datetime) -> int:
 
     if response.status_code != 200:
         print(f'{response.status_code=}')
-        return
+        return None
 
     return response.json().get('reportId')
 
@@ -87,7 +86,7 @@ def fetch_reports() -> list[dict]:
 
     if response.status_code != 200:
         print(f'{response.status_code=}')
-        return
+        return None
 
     return response.json()
 
@@ -116,19 +115,17 @@ def map_ticker(ticker: str) -> str:
 @track_args
 def transform(df_bytes: bytes) -> pd.DataFrame:
     # Read input CSV
-    df = pd.read_csv(StringIO(df_bytes.decode('utf-8')))
+    report_df = pd.read_csv(StringIO(df_bytes.decode('utf-8')))
 
     # Filter out blacklisted tickers
-    df = df[~df['Ticker'].isin(TICKER_BLACKLIST)]
-    df = df[df['Action'].isin(['Market buy', 'Market sell'])]
+    report_df = report_df[~report_df['Ticker'].isin(TICKER_BLACKLIST)]
+    report_df = report_df[report_df['Action'].isin(['Market buy', 'Market sell'])]
 
     # Apply the mapping to the ticker column
-    df['Ticker'] = df['Ticker'].apply(map_ticker)
+    report_df['Ticker'] = report_df['Ticker'].apply(map_ticker)
 
     # convert dtypes
-    df = df.convert_dtypes()
-
-    return df
+    return report_df.convert_dtypes()
 
 
 def main():
@@ -143,7 +140,7 @@ def main():
     while not (report_id := create_export(from_dt, to_dt)):
         # limit 1 call per 30s
         time.sleep(30)
-    
+
     # optimize for too early fetch_reports call -> report still processing
     time.sleep(10)
 
@@ -168,18 +165,18 @@ def main():
             break
 
     response = requests.get(download_link)
-    df = response.content
+    t212_df = response.content
 
-    if response.status_code == 200:
-        s3_put_object(bytes=df, bucket=BUCKET_NAME, key=f't212/{input_dt_str}.csv')
-
-        df = transform(df)
-        df.to_csv(f'{input_dt_str}.csv')
-
-        s3_put_df(df, bucket=BUCKET_NAME, key=f'digrin/{input_dt_str}.csv')
-
-    else:
+    if response.status_code != 200:
         print(f'{response.status_code=}')
+        return
+
+    s3_put_object(bytes=t212_df, bucket=BUCKET_NAME, key=f't212/{input_dt_str}.csv')
+
+    digrin_df = transform(t212_df)
+    digrin_df.to_csv(f'{input_dt_str}.csv')
+
+    s3_put_df(digrin_df, bucket=BUCKET_NAME, key=f'digrin/{input_dt_str}.csv')
 
 
 if __name__ == '__main__':
