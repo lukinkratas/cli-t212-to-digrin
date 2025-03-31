@@ -1,4 +1,5 @@
 import datetime
+from dateutil.relativedelta import relativedelta
 import os
 import time
 from io import StringIO
@@ -18,11 +19,11 @@ TICKER_BLACKLIST = [
 
 def get_input_dt() -> str:
     today_dt = datetime.date.today()
-    default_dt = datetime.datetime(today_dt.year, today_dt.month - 1, today_dt.day)
+    default_dt = today_dt - relativedelta(months=1)
     default_dt_str = default_dt.strftime('%Y-%m')
 
-    print('Reporting Year Month in "YYYY-mm" format.')
-    print(f'Or confirm default "{default_dt_str}" by ENTER: \n')
+    print('Reporting Year Month in "YYYY-mm" format:')
+    print(f'Or confirm default "{default_dt_str}" by ENTER.')
     input_dt_str = input()
 
     if not input_dt_str:
@@ -32,11 +33,12 @@ def get_input_dt() -> str:
 
 
 def get_first_day_of_month(dt: datetime.datetime) -> datetime.datetime:
-    return datetime.datetime(dt.year, dt.month, 1)
+    return dt.replace(day=1)
 
 
 def get_first_day_of_next_month(dt: datetime.datetime) -> datetime.datetime:
-    return datetime.datetime(dt.year, dt.month + 1, 1)
+    next_month_dt = dt + relativedelta(months=1)
+    return next_month_dt.replace(day=1)
 
 
 @track_args
