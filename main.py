@@ -139,7 +139,12 @@ def main():
     from_dt = get_first_day_of_month(input_dt)
     to_dt = get_first_day_of_next_month(input_dt)
 
-    while not (report_id := create_export(from_dt, to_dt)):
+    while True:
+        report_id = create_export(from_dt, to_dt)
+
+        if report_id:
+            break
+
         # limit 1 call per 30s
         time.sleep(30)
 
