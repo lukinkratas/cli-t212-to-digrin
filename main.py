@@ -172,11 +172,12 @@ def main():
             break
 
     response = requests.get(download_link)
-    t212_df = response.content
 
     if response.status_code != 200:
         print(f'{response.status_code=}')
         return
+
+    t212_df = response.content
 
     s3_put_object(bytes=t212_df, bucket=BUCKET_NAME, key=f't212/{input_dt_str}.csv')
 

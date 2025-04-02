@@ -14,3 +14,9 @@ uv run main.py
 # TODO
 
 - [ ] archive reports in parquet ?
+
+- [ ] add type hints for created variables in main()
+
+- [ ] add logging
+
+- [ ] add tests
