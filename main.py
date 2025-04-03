@@ -121,6 +121,8 @@ def transform(df_bytes: bytes) -> pd.DataFrame:
 
     # Filter out blacklisted tickers
     report_df = report_df[~report_df['Ticker'].isin(TICKER_BLACKLIST)]
+
+    # Filter only buys and sells
     report_df = report_df[report_df['Action'].isin(['Market buy', 'Market sell'])]
 
     # Apply the mapping to the ticker column
@@ -178,13 +180,14 @@ def main():
         return
 
     t212_df = response.content
+    filename = f'{input_dt_str}.csv'
 
-    s3_put_object(bytes=t212_df, bucket=BUCKET_NAME, key=f't212/{input_dt_str}.csv')
+    s3_put_object(bytes=t212_df, bucket=BUCKET_NAME, key=f't212/{filename}')
 
     digrin_df = transform(t212_df)
-    digrin_df.to_csv(f'{input_dt_str}.csv')
+    digrin_df.to_csv(filename)
 
-    s3_put_df(digrin_df, bucket=BUCKET_NAME, key=f'digrin/{input_dt_str}.csv')
+    s3_put_df(digrin_df, bucket=BUCKET_NAME, key=f'digrin/{filename}')
 
 
 if __name__ == '__main__':
