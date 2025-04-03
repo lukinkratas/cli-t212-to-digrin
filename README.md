@@ -20,3 +20,5 @@ uv run main.py
 - [ ] add logging
 
 - [ ] add tests
+
+- [ ] investigate option of asyncio
