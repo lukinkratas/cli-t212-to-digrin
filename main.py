@@ -14,7 +14,7 @@ from custom_utils import s3_put_df, s3_put_object, track_args
 def get_input_dt() -> str:
     today_dt = datetime.date.today()
     previous_month_dt = today_dt - relativedelta(months=1)
-    previous_month_dt_str = default_dt.strftime('%Y-%m')
+    previous_month_dt_str = previous_month_dt.strftime('%Y-%m')
 
     print('Reporting Year Month in "YYYY-mm" format:')
     print(f'Or confirm default "{previous_month_dt_str}" by ENTER.')
@@ -129,16 +129,16 @@ def transform(df_bytes: bytes) -> pd.DataFrame:
 def main():
     load_dotenv(override=True)
 
-    BUCKET_NAME = os.getenv('BUCKET_NAME')
+    BUCKET_NAME:str = os.getenv('BUCKET_NAME')
 
-    input_dt_str = get_input_dt()  # used later in the naming of csv
-    input_dt = datetime.datetime.strptime(input_dt_str, '%Y-%m')
+    input_dt_str:str = get_input_dt()  # used later in the naming of csv
+    input_dt:datetime.datetime = datetime.datetime.strptime(input_dt_str, '%Y-%m')
 
-    from_dt = get_first_day_of_month(input_dt)
-    to_dt = get_first_day_of_next_month(input_dt)
+    from_dt:datetime.datetime = get_first_day_of_month(input_dt)
+    to_dt:datetime.datetime = get_first_day_of_next_month(input_dt)
 
     while True:
-        report_id = create_export(from_dt, to_dt)
+        report_id:int = create_export(from_dt, to_dt)
 
         if report_id:
             break
@@ -146,10 +146,13 @@ def main():
         # limit 1 call per 30s
         time.sleep(10)
 
+    # optimized wait time for report creation
+    time.sleep(10)
+
     while True:
         # reports: list of dicts with keys:
         #   reportId, timeFrom, timeTo, dataIncluded, status, downloadLink
-        reports = fetch_reports()
+        reports:list[dict] = fetch_reports()
 
         # too many calls -> fetch_reports returns None
         if not reports:
@@ -158,26 +161,26 @@ def main():
             continue
 
         # filter report by report_id, start from the last report
-        report = next(
+        report:dict = next(
             filter(lambda report: report.get('reportId') == report_id, reports[::-1])
         )
 
         if report.get('status') == 'Finished':
-            download_link = report.get('downloadLink')
+            download_link:str = report.get('downloadLink')
             break
 
-    response = requests.get(download_link)
+    response:requests.Response = requests.get(download_link)
 
     if response.status_code != 200:
         print(f'{response.status_code=}')
         return
 
-    t212_df = response.content
-    filename = f'{input_dt_str}.csv'
+    t212_df:pd.DataFrame = response.content
+    filename:str = f'{input_dt_str}.csv'
 
     s3_put_object(bytes=t212_df, bucket=BUCKET_NAME, key=f't212/{filename}')
 
-    digrin_df = transform(t212_df)
+    digrin_df:pd.DataFrame = transform(t212_df)
     digrin_df.to_csv(filename)
 
     s3_put_df(digrin_df, bucket=BUCKET_NAME, key=f'digrin/{filename}')
