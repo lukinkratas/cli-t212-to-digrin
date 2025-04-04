@@ -10,8 +10,6 @@ from dotenv import load_dotenv
 
 from custom_utils import s3_put_df, s3_put_object, track_args
 
-BUCKET_NAME = 't212-to-digrin'
-
 
 def get_input_dt() -> str:
     today_dt = datetime.date.today()
@@ -130,6 +128,8 @@ def transform(df_bytes: bytes) -> pd.DataFrame:
 
 def main():
     load_dotenv(override=True)
+
+    BUCKET_NAME = os.getenv('BUCKET_NAME')
 
     input_dt_str = get_input_dt()  # used later in the naming of csv
     input_dt = datetime.datetime.strptime(input_dt_str, '%Y-%m')
