@@ -13,15 +13,15 @@ from custom_utils import s3_put_df, s3_put_object, track_args
 
 def get_input_dt() -> str:
     today_dt = datetime.date.today()
-    default_dt = today_dt - relativedelta(months=1)
-    default_dt_str = default_dt.strftime('%Y-%m')
+    previous_month_dt = today_dt - relativedelta(months=1)
+    previous_month_dt_str = default_dt.strftime('%Y-%m')
 
     print('Reporting Year Month in "YYYY-mm" format:')
-    print(f'Or confirm default "{default_dt_str}" by ENTER.')
+    print(f'Or confirm default "{previous_month_dt_str}" by ENTER.')
     input_dt_str = input()
 
     if not input_dt_str:
-        input_dt_str = default_dt_str
+        input_dt_str = previous_month_dt_str
 
     return input_dt_str
 
