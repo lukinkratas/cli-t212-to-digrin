@@ -115,11 +115,11 @@ def transform(df_bytes: bytes) -> pd.DataFrame:
     # Read input CSV
     report_df = pd.read_csv(StringIO(df_bytes.decode('utf-8')))
 
-    # Filter out blacklisted tickers
-    report_df = report_df[~report_df['Ticker'].isin(TICKER_BLACKLIST)]
-
     # Filter only buys and sells
     report_df = report_df[report_df['Action'].isin(['Market buy', 'Market sell'])]
+
+    # Filter out blacklisted tickers
+    report_df = report_df[~report_df['Ticker'].isin(TICKER_BLACKLIST)]
 
     # Apply the mapping to the ticker column
     report_df['Ticker'] = report_df['Ticker'].replace(TICKER_MAP)
