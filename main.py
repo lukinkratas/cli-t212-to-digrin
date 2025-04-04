@@ -144,10 +144,7 @@ def main():
             break
 
         # limit 1 call per 30s
-        time.sleep(30)
-
-    # optimize for too early fetch_reports call -> report still processing
-    time.sleep(10)
+        time.sleep(10)
 
     while True:
         # reports: list of dicts with keys:
@@ -157,7 +154,7 @@ def main():
         # too many calls -> fetch_reports returns None
         if not reports:
             # limit 1 call per 1min
-            time.sleep(60)
+            time.sleep(10)
             continue
 
         # filter report by report_id, start from the last report
