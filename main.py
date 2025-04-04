@@ -11,10 +11,6 @@ from dotenv import load_dotenv
 from custom_utils import s3_put_df, s3_put_object, track_args
 
 BUCKET_NAME = 't212-to-digrin'
-TICKER_BLACKLIST = [
-    'VNTRF',  # due to stock split
-    'BRK.A',  # not available in digrin
-]
 
 
 def get_input_dt() -> str:
@@ -93,10 +89,15 @@ def fetch_reports() -> list[dict]:
     return response.json()
 
 
-def map_ticker(ticker: str) -> str:
-    ticker = str(ticker).strip()
+@track_args
+def transform(df_bytes: bytes) -> pd.DataFrame:
 
-    ticker_map = {
+    TICKER_BLACKLIST = [
+        'VNTRF',  # due to stock split
+        'BRK.A',  # not available in digrin
+    ]
+
+    TICKER_MAP = {
         'VWCE': 'VWCE.DE',
         'VUAA': 'VUAA.DE',
         'SXRV': 'SXRV.DE',
@@ -111,11 +112,6 @@ def map_ticker(ticker: str) -> str:
         'NDIA': 'NDIA.L',
     }
 
-    return ticker_map.get(ticker, ticker)
-
-
-@track_args
-def transform(df_bytes: bytes) -> pd.DataFrame:
     # Read input CSV
     report_df = pd.read_csv(StringIO(df_bytes.decode('utf-8')))
 
@@ -126,7 +122,7 @@ def transform(df_bytes: bytes) -> pd.DataFrame:
     report_df = report_df[report_df['Action'].isin(['Market buy', 'Market sell'])]
 
     # Apply the mapping to the ticker column
-    report_df['Ticker'] = report_df['Ticker'].apply(map_ticker)
+    report_df['Ticker'] = report_df['Ticker'].replace(TICKER_MAP)
 
     # convert dtypes
     return report_df.convert_dtypes()
